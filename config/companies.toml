@@ -1,0 +1,61 @@
+# Companies to watch. Key = Greenhouse board token, the part after
+# job-boards.greenhouse.io/<token>. Check one with:
+#   curl https://boards-api.greenhouse.io/v1/boards/<token>/jobs
+
+[boards]
+# health and impact
+oura = "Oura"
+gympass = "Wellhub"
+swordhealth = "Sword Health"
+flohealth = "Flo Health"
+zocdoc = "Zocdoc"
+komodohealth = "Komodo Health"
+betterhelp = "BetterHelp"
+talkspace = "Talkspace"
+modernhealth = "Modern Health"
+duolingo = "Duolingo"
+coursera = "Coursera"
+khanacademy = "Khan Academy"
+wikimedia = "Wikimedia"
+mozilla = "Mozilla"
+# AI, dev tools, platforms
+gitlab = "GitLab"
+anthropic = "Anthropic"
+canonical = "Canonical"
+grafanalabs = "Grafana Labs"
+elastic = "Elastic"
+vercel = "Vercel"
+planetscale = "PlanetScale"
+mongodb = "MongoDB"
+cloudflare = "Cloudflare"
+datadog = "Datadog"
+intercom = "Intercom"
+stripe = "Stripe"
+affirm = "Affirm"
+consensys = "Consensys"
+
+[rules]
+# Title must contain one of these (whole word, case-insensitive)...
+title_include = [
+  "engineer", "developer", "forward deployed", "solutions",
+  "systems", "automation", "integration", "integrations", "ai",
+]
+# ...and none of these. Early-career search, so seniority words go.
+title_exclude = [
+  "senior", "sr", "staff", "principal", "lead", "manager", "director",
+  "head", "vp", "architect", "intern", "sales", "account", "recruiter",
+  "counsel", "legal", "designer",
+]
+# A location naming any of these is workable for her.
+location_include = [
+  "poland", "warsaw", "krakow", "kraków", "wroclaw", "wrocław", "gdansk",
+  "emea", "europe", "eu", "anywhere", "worldwide", "global",
+]
+# Only these named, and nothing from the list above: not workable.
+location_exclude = [
+  "united states", "us", "usa", "canada", "americas", "latam", "brazil",
+  "mexico", "india", "san francisco", "new york", "seattle", "austin",
+  "boston", "chicago", "toronto", "remote - us", "north america",
+]
+# Hints she could work from Asia.
+asia_yes = ["anywhere", "worldwide", "global", "apac", "asia", "singapore", "japan", "thailand", "vietnam", "indonesia", "bali"]
