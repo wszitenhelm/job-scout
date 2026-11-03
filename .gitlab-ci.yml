@@ -1,0 +1,40 @@
+# Two jobs:
+#   test   on every push and merge request
+#   scout  only from a pipeline schedule (CI/CD > Schedules), e.g. daily 07:00
+#
+# Set SLACK_WEBHOOK_URL as a masked, protected CI/CD variable.
+# Without it, the digest prints to the job log instead of posting.
+
+default:
+  image: python:3.12-slim
+  before_script:
+    - pip install -q -r requirements.txt
+
+stages: [test, scout]
+
+test:
+  stage: test
+  script:
+    - pip install -q -r requirements-dev.txt
+    - python -m pytest -q
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "push" || $CI_PIPELINE_SOURCE == "merge_request_event"
+
+scout:
+  stage: scout
+  # The SQLite file is the memory of what was already posted. The cache
+  # keeps it between scheduled runs. Cache is best effort: if it's lost,
+  # the next run re-posts current roles once. Acceptable for a digest;
+  # for anything with side effects, use a real database instead.
+  cache:
+    key: scout-db
+    paths: [data/]
+  script:
+    - python -m scout fetch
+    - python -m scout digest --limit 15
+  artifacts:
+    when: always
+    paths: [data/scout.jsonl]
+    expire_in: 30 days
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule"
