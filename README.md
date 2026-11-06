@@ -41,6 +41,7 @@ Me                                shortlist / skip / applied, through the same C
 pip install -r requirements.txt
 python -m scout fetch                       # pull and filter
 python -m scout list                        # what's in the store
+python -m scout add "<job link>"            # add one role from a link, even outside the filters
 python -m scout show gitlab:8861748002      # full description
 python -m scout score gitlab:8861748002 82 "Automation + webhooks match; gap: Workato"
 python -m scout digest --min-score 60       # needs SLACK_WEBHOOK_URL, else prints the payload

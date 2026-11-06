@@ -51,6 +51,15 @@ python -m scout set <id> shortlist|skip|applied|interview|rejected|offer
 ```
 `python -m scout stats` shows the pipeline.
 
+## 4b. She pastes a job link
+
+When she pastes a job URL (usually opened from the Slack digest) and says "prepare" or "build the pack":
+```
+python -m scout add "<url>"
+python -m scout show <id>
+```
+`add` reads the id from the link and stores that one role, even if the rules would have filtered it. Read the note it prints (filtered title, location not workable) and tell her honestly. If it says 404, the role may be closed, or pass `--board <token>`. Then score it, set it to `shortlist`, and continue with step 5.
+
 ## 5. Application pack (only when she asks for one)
 
 If her `job_applications` repo is available, build the pack there following its `_master/pack-spec.md`: CV PDF, cover letter PDF when accepted, `apply.md`. Then `python -m scout set <id> shortlist`.

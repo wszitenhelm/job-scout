@@ -192,3 +192,49 @@ def test_cli_flow(tmp_path, monkeypatch, capsys, jobs):
     db = store.connect(str(tmp_path / "e2e.db"))
     assert store.get(db, "gitlab:8861748002")["posted_at"] is None   # dry run never marks posted
     assert cli.main(["show", "nope:1"]) == 2
+
+
+# --- add by link ----------------------------------------------------------
+
+@pytest.mark.parametrize("url,board,expected", [
+    ("https://job-boards.greenhouse.io/gitlab/jobs/8861748002", None, ("gitlab", "8861748002")),
+    ("https://boards.greenhouse.io/embed/job_app?for=oura&token=123", None, ("oura", "123")),
+    ("https://stripe.com/careers/listing/integration-engineer-metronome/8080454?gh_jid=8080454",
+     None, ("stripe", "8080454")),
+    ("https://www.cloudflare.com/careers/jobs/?gh_jid=55", None, ("cloudflare", "55")),
+    ("https://grafana.com/about/careers/?gh_jid=9", "grafanalabs", ("grafanalabs", "9")),
+])
+def test_parse_job_url(url, board, expected):
+    assert greenhouse.parse_job_url(url, board=board) == expected
+
+
+def test_parse_job_url_rejects_link_without_id():
+    with pytest.raises(ValueError):
+        greenhouse.parse_job_url("https://example.com/careers")
+
+
+def test_fetch_job_normalizes_single_job():
+    raw = FIXTURE["jobs"][0]
+    job = greenhouse.fetch_job("gitlab", raw["id"], get=lambda url, **k: FakeResp(200, raw))
+    assert job["id"] == f"gitlab:{raw['id']}"
+
+
+def test_cli_add_keeps_role_even_if_rules_drop_it(tmp_path, monkeypatch, capsys):
+    from scout import __main__ as cli
+    senior_us = {"id": 7, "title": "Senior Sales Lead", "company_name": "Stripe",
+                 "location": {"name": "United States"}, "absolute_url": "http://x",
+                 "updated_at": "", "content": "desc"}
+    monkeypatch.setattr(cli, "DB_PATH", str(tmp_path / "add.db"))
+    monkeypatch.setattr(cli, "load_config",
+                        lambda: {"boards": {"stripe": "Stripe"}, "rules": RULES})
+    monkeypatch.setattr(greenhouse, "get_with_retry", lambda url, **k: FakeResp(200, senior_us))
+    monkeypatch.setattr(greenhouse, "fetch_job",
+                        lambda b, i, get=None: greenhouse.normalize(b, senior_us))
+
+    url = "https://stripe.com/careers/x?gh_jid=7"
+    assert cli.main(["add", url]) == 0
+    out = capsys.readouterr().out
+    assert "Added: stripe:7" in out and "filtered" in out and "not workable" in out
+    assert cli.main(["add", url]) == 0                    # rerun: no duplicate
+    assert "Already stored" in capsys.readouterr().out
+    assert cli.main(["add", "https://example.com/nope"]) == 2

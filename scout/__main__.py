@@ -2,6 +2,7 @@
 
     python -m scout fetch                 pull boards, filter, store new roles
     python -m scout list [--status new] [--unscored] [--json]
+    python -m scout add <url> [--board T] add one role from a link (any Greenhouse job)
     python -m scout show <id>             full description (for Claude to judge)
     python -m scout score <id> <0-100> "<reason>"
     python -m scout set <id> <status>     shortlist / skip / applied / interview ...
@@ -17,6 +18,8 @@ import json
 import os
 import sys
 import tomllib
+
+import requests
 
 from scout import filters, greenhouse, slack, store
 from scout.log import log
@@ -49,6 +52,39 @@ def cmd_fetch(db, cfg, args):
     print(f"{new} new roles. Failed boards: {', '.join(failed) or 'none'}")
     # Partial failure is still a failure for CI, so someone looks at it.
     return 1 if failed else 0
+
+
+def cmd_add(db, cfg, args):
+    """Add one role by link, even if the rules would have dropped it or the
+    company isn't in config. You picked it, so it goes in. The rule verdict
+    is printed as information, never used to refuse."""
+    try:
+        board, job_id = greenhouse.parse_job_url(args.url, board=args.board)
+        job = greenhouse.fetch_job(board, job_id)
+    except ValueError as exc:
+        print(str(exc), file=sys.stderr)
+        return 2
+    except requests.HTTPError as exc:
+        print(f"Greenhouse says {exc}. The role may be closed, or the board "
+              f"token is not '{board}'. Retry with --board <token>.", file=sys.stderr)
+        return 2
+    rules = cfg["rules"]
+    job["company"] = cfg["boards"].get(board, job["company"])
+    job["where"] = filters.location_verdict(job["location"], rules)
+    job["asia"] = filters.asia_flag(job["location"], rules)
+    is_new = store.upsert(db, job)
+    db.commit()
+    log("job_added", id=job["id"], new=is_new)
+    notes = []
+    if not filters.title_ok(job["title"], rules):
+        notes.append("title would be filtered by the rules")
+    if job["where"] == "no":
+        notes.append("location is not workable from Poland")
+    print(f"{'Added' if is_new else 'Already stored'}: {job['id']}  "
+          f"{job['company']}: {job['title']} ({job['location']})")
+    for n in notes:
+        print(f"Note: {n}")
+    return 0
 
 
 def cmd_list(db, cfg, args):
@@ -113,6 +149,9 @@ def main(argv=None):
     pl.add_argument("--status")
     pl.add_argument("--unscored", action="store_true")
     pl.add_argument("--json", action="store_true")
+    pa = sub.add_parser("add")
+    pa.add_argument("url")
+    pa.add_argument("--board", help="Greenhouse board token, if the link doesn't contain it")
     ps = sub.add_parser("show")
     ps.add_argument("id")
     pc = sub.add_parser("score")

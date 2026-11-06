@@ -12,6 +12,7 @@ timeouts, 429s and 5xx with exponential backoff, and fail loudly
 import html
 import re
 import time
+from urllib.parse import parse_qs, urlparse
 
 import requests
 
@@ -52,6 +53,48 @@ def fetch_jobs(board_token, get=get_with_retry):
     log("fetch_ok", board=board_token, count=len(jobs),
         duration_ms=int((time.monotonic() - started) * 1000))
     return jobs
+
+
+def parse_job_url(url, board=None):
+    """Turn a job link into (board_token, job_id).
+
+    Understands the three shapes a Slack digest link can have:
+      job-boards.greenhouse.io/<board>/jobs/<id>      (also boards.greenhouse.io)
+      boards.greenhouse.io/embed/job_app?for=<board>&token=<id>
+      <company site>/careers/...?gh_jid=<id>          (board guessed from the
+                                                       domain, or pass board=)
+    Raises ValueError with a message that says what to do.
+    """
+    parts = urlparse(url.strip())
+    host = (parts.hostname or "").lower()
+    query = parse_qs(parts.query)
+
+    if host.endswith("greenhouse.io"):
+        m = re.match(r"^/([^/]+)/jobs/(\d+)", parts.path)
+        if m:
+            return board or m.group(1), m.group(2)
+        if query.get("for") and query.get("token"):
+            return board or query["for"][0], query["token"][0]
+
+    jid = (query.get("gh_jid") or query.get("gh_job_id") or [None])[0]
+    if jid and jid.isdigit():
+        if board:
+            return board, jid
+        labels = [l for l in host.split(".") if l not in ("www", "careers", "jobs")]
+        guess = labels[-2] if len(labels) >= 2 else labels[0] if labels else ""
+        if guess:
+            return guess, jid
+    raise ValueError("No Greenhouse job id in that link. Pass --board <token> "
+                     "or use a job-boards.greenhouse.io link.")
+
+
+def fetch_job(board_token, job_id, get=get_with_retry):
+    """Fetch one job by id. A 404 means the role closed, or the board token
+    is wrong (company sites often differ from the Greenhouse token)."""
+    resp = get(f"{BASE}/{board_token}/jobs/{job_id}")
+    job = normalize(board_token, resp.json())
+    log("fetch_job_ok", board=board_token, id=job["id"])
+    return job
 
 
 def normalize(board_token, raw):
